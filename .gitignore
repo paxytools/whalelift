@@ -1,0 +1,14 @@
+# IDEs
+.idea/
+
+# Ignore logs and temp output
+*.log
+*.tmp
+
+# Ignore user testing files
+.env
+.secrets
+
+# Ignore OS junk
+.DS_Store
+Thumbs.db
