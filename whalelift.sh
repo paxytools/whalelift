@@ -5,23 +5,27 @@ set -euo pipefail
 # 🐋 whalelift — Docker container image upgrader
 #
 # Safely upgrades a Docker container by:
-#   - Pulling the latest version of its image
+#   - Pulling the latest version of its image (or a specified tag)
 #   - Checking if the image has changed
 #   - If changed: stops, removes, and re-creates the container
 #     with the same env, ports, volumes, and restart policy
 #
 # Usage:
-#   whalelift [--dry-run] <container_name>
+#   whalelift [--dry-run] [--tag <tag>] <container_name>
+#
+# Options:
+#   --dry-run     Preview changes without applying them
+#   --tag <tag>   Specify a version tag to use instead of the latest
 #
 # Install:
 #   curl -sSL https://raw.githubusercontent.com/paxytools/whalelift/main/whalelift.sh \
 #     | sudo tee /usr/local/bin/whalelift > /dev/null && sudo chmod +x /usr/local/bin/whalelift
 #
 # Project: https://github.com/paxytools/whalelift
-# Version: 0.1.0
+# Version: 0.2.0
 ###############################################################################
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 # --- Handle flags ---
 if [[ "${1:-}" == "--version" ]]; then
@@ -40,9 +44,19 @@ if [[ "${1:-}" == "--dry-run" ]]; then
   shift
 fi
 
+TAG=""
+if [[ "${1:-}" == "--tag" ]]; then
+  if [[ $# -lt 2 ]]; then
+    echo "Error: --tag requires a value"
+    exit 1
+  fi
+  TAG="$2"
+  shift 2
+fi
+
 # --- Validate input ---
 if [[ $# -ne 1 ]]; then
-  echo "Usage: whalelift [--dry-run] <container_name>"
+  echo "Usage: whalelift [--dry-run] [--tag <tag>] <container_name>"
   exit 1
 fi
 
@@ -55,12 +69,29 @@ if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
 fi
 
 # --- Identify image ---
-IMAGE=$(docker inspect -f '{{.Config.Image}}' "$CONTAINER")
+ORIGINAL_IMAGE=$(docker inspect -f '{{.Config.Image}}' "$CONTAINER")
+IMAGE="$ORIGINAL_IMAGE"
+
+# --- Apply tag if specified ---
+if [[ -n "$TAG" ]]; then
+  # Extract the base image name (remove existing tag if present)
+  if [[ "$IMAGE" == *:* ]]; then
+    BASE_IMAGE="${IMAGE%%:*}"
+  else
+    BASE_IMAGE="$IMAGE"
+  fi
+  # Create new image reference with specified tag
+  IMAGE="${BASE_IMAGE}:${TAG}"
+fi
+
 echo "🔍 Container: $CONTAINER"
-echo "📦 Image:     $IMAGE"
+echo "📦 Current Image: $ORIGINAL_IMAGE"
+if [[ "$IMAGE" != "$ORIGINAL_IMAGE" ]]; then
+  echo "🏷️  Target Image:  $IMAGE"
+fi
 
 # --- Pull image ---
-echo "⬇️  Pulling latest image..."
+echo "⬇️  Pulling image..."
 docker pull "$IMAGE" > /dev/null
 
 # --- Compare image IDs ---
@@ -85,6 +116,12 @@ RESTART_FLAG=$([ "$RESTART_POLICY" != "no" ] && echo "--restart=$RESTART_POLICY"
 if [[ "$DRY_RUN" == true ]]; then
   echo "🧾 Dry-run: would run this command:"
   echo "docker run -d --name $CONTAINER $RESTART_FLAG $ENV_FLAGS $PORT_FLAGS $VOLUME_FLAGS $IMAGE"
+
+  if [[ -n "$TAG" ]]; then
+    echo "✅ Would upgrade '$CONTAINER' to image with tag '$TAG'."
+  else
+    echo "✅ Would upgrade '$CONTAINER' to the latest image."
+  fi
   exit 0
 fi
 
@@ -98,4 +135,8 @@ docker rm "$CONTAINER" > /dev/null
 echo "🚀 Recreating container..."
 docker run -d --name "$CONTAINER" $RESTART_FLAG $ENV_FLAGS $PORT_FLAGS $VOLUME_FLAGS "$IMAGE" > /dev/null
 
-echo "✅ Upgrade complete: '$CONTAINER' is now running the latest image."
+if [[ -n "$TAG" ]]; then
+  echo "✅ Upgrade complete: '$CONTAINER' is now running image with tag '$TAG'."
+else
+  echo "✅ Upgrade complete: '$CONTAINER' is now running the latest image."
+fi

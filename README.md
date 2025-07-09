@@ -36,6 +36,8 @@ sudo curl -sSL https://raw.githubusercontent.com/paxytools/whalelift/main/whalel
   -o /usr/local/bin/whalelift && sudo chmod +x /usr/local/bin/whalelift
 ```
 
+> **Note:** The same command can be used to upgrade whalelift to the latest version. It will overwrite the existing script with the latest version from the repository.
+
 ## 🧪 Usage
 
 ### Basic Usage
@@ -61,6 +63,11 @@ Upgrade a specific container:
 whalelift my-app
 ```
 
+Specify a particular version tag:
+```bash
+whalelift --tag 1.2.3 my-app
+```
+
 Dry-run mode (preview without making changes):
 ```bash
 whalelift --dry-run my-app
@@ -77,8 +84,8 @@ When you run whalelift, you'll see output similar to this:
 
 ```bash
 🔍 Container: my-app
-📦 Image:     myregistry.com/app:latest
-⬇️  Pulling latest image...
+📦 Current Image: myregistry.com/app:latest
+⬇️  Pulling image...
 ⚠️  New image detected. Preparing to upgrade...
 🛑 Stopping container...
 🧹 Removing container...
@@ -86,7 +93,22 @@ When you run whalelift, you'll see output similar to this:
 ✅ Upgrade complete: 'my-app' is now running the latest image.
 ```
 
+When using the `--tag` option:
+
+```bash
+🔍 Container: my-app
+📦 Current Image: myregistry.com/app:latest
+🏷️  Target Image:  myregistry.com/app:1.2.3
+⬇️  Pulling image...
+⚠️  New image detected. Preparing to upgrade...
+🛑 Stopping container...
+🧹 Removing container...
+🚀 Recreating container...
+✅ Upgrade complete: 'my-app' is now running image with tag '1.2.3'.
+```
+
 The tool provides clear status updates throughout the upgrade process.
+
 
 ## 🗑️ Uninstallation
 
@@ -112,7 +134,7 @@ sudo rm /usr/local/bin/whalelift
 ### Limitations
 - Assumes containers were created via `docker run` (not Compose or Swarm)
 - Networks, labels, and advanced flags are not yet supported
-- Image tag should be `:latest` or a mutable tag to detect updates
+- Without the `--tag` option, the tool uses the container's current image tag
 
 ## 🛠 Roadmap
 
