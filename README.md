@@ -58,23 +58,30 @@ curl -sSL https://raw.githubusercontent.com/paxytools/whalelift/main/whalelift.s
 
 ### Command Options
 
-Upgrade a specific container:
+| Option | Description |
+|--------|-------------|
+| `--dry-run` | Preview changes without applying them |
+| `--print-run` | Output the docker run command and exit |
+| `--tag <tag>` | Use a specific image tag instead of latest |
+| `--version` | Display the version of whalelift |
+| `--help` | Show usage information |
+
+Examples:
+
 ```bash
+# Upgrade a specific container
 whalelift my-app
-```
 
-Specify a particular version tag:
-```bash
+# Specify a particular version tag
 whalelift --tag 1.2.3 my-app
-```
 
-Dry-run mode (preview without making changes):
-```bash
+# Dry-run mode (preview without making changes)
 whalelift --dry-run my-app
-```
 
-Check the installed version:
-```bash
+# Print the equivalent docker run command
+whalelift --print-run my-app
+
+# Check the installed version
 whalelift --version
 ```
 
@@ -145,7 +152,7 @@ sudo rm /usr/local/bin/whalelift
 
 ## 📄 License
 
-Apache License 2.0
+MIT License
 
 ## 🧰 Contributing
 

@@ -11,56 +11,75 @@ set -euo pipefail
 #     with the same env, ports, volumes, and restart policy
 #
 # Usage:
-#   whalelift [--dry-run] [--tag <tag>] <container_name>
+#    whalelift [OPTIONS] <container_name>
 #
 # Options:
-#   --dry-run     Preview changes without applying them
-#   --tag <tag>   Specify a version tag to use instead of the latest
+#    –dry-run   Preview changes without applying them
+#    –print-run  Output the docker run command and exit
+#    –tag   Use a specific image tag instead of latest
 #
 # Install:
 #   curl -sSL https://raw.githubusercontent.com/paxytools/whalelift/main/whalelift.sh \
 #     | sudo tee /usr/local/bin/whalelift > /dev/null && sudo chmod +x /usr/local/bin/whalelift
 #
 # Project: https://github.com/paxytools/whalelift
-# Version: 0.2.0
+# Version: 0.3.0
 ###############################################################################
 
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 # --- Handle flags ---
-if [[ "${1:-}" == "--version" ]]; then
-  echo "whalelift v$VERSION"
-  exit 0
-fi
-
-if [[ "${1:-}" == "--help" ]]; then
-  grep '^#' "$0" | cut -c 3-
-  exit 0
-fi
-
 DRY_RUN=false
-if [[ "${1:-}" == "--dry-run" ]]; then
-  DRY_RUN=true
-  shift
-fi
-
+PRINT_RUN=false
 TAG=""
-if [[ "${1:-}" == "--tag" ]]; then
-  if [[ $# -lt 2 ]]; then
-    echo "Error: --tag requires a value"
-    exit 1
-  fi
-  TAG="$2"
-  shift 2
-fi
+CONTAINER=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version)
+      echo "whalelift v$VERSION"
+      exit 0
+      ;;
+    --help)
+      grep '^#' "$0" | cut -c 3-
+      exit 0
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --print-run)
+      PRINT_RUN=true
+      shift
+      ;;
+    --tag)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: --tag requires a value"
+        exit 1
+      fi
+      TAG="$2"
+      shift 2
+      ;;
+    -*)
+      echo "Error: Unknown option: $1"
+      echo "Usage: whalelift [--dry-run] [--print-run] [--tag <tag>] <container_name>"
+      exit 1
+      ;;
+    *)
+      # Positional argument (container name)
+      CONTAINER="$1"
+      shift
+      ;;
+  esac
+done
 
 # --- Validate input ---
-if [[ $# -ne 1 ]]; then
-  echo "Usage: whalelift [--dry-run] [--tag <tag>] <container_name>"
+if [[ -z "$CONTAINER" ]]; then
+  echo "Error: Container name is required"
+  echo "Usage: whalelift [--dry-run] [--print-run] [--tag <tag>] <container_name>"
   exit 1
 fi
-
-CONTAINER="$1"
 
 # --- Check container exists ---
 if ! docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
@@ -88,6 +107,20 @@ echo "🔍 Container: $CONTAINER"
 echo "📦 Current Image: $ORIGINAL_IMAGE"
 if [[ "$IMAGE" != "$ORIGINAL_IMAGE" ]]; then
   echo "🏷️  Target Image:  $IMAGE"
+fi
+
+# --- Print-run mode ---
+if [[ "$PRINT_RUN" == true ]]; then
+  # --- Extract run config ---
+  ENV_FLAGS=$(docker inspect --format '{{range .Config.Env}}-e {{.}} {{end}}' "$CONTAINER")
+  PORT_FLAGS=$(docker inspect --format '{{range $p, $b := .HostConfig.PortBindings}}-p {{(index $b 0).HostPort}}:{{$p}} {{end}}' "$CONTAINER")
+  VOLUME_FLAGS=$(docker inspect --format '{{range .Mounts}}-v {{.Source}}:{{.Destination}} {{end}}' "$CONTAINER")
+  RESTART_POLICY=$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$CONTAINER")
+  RESTART_FLAG=$([ "$RESTART_POLICY" != "no" ] && echo "--restart=$RESTART_POLICY" || echo "")
+
+  echo "🖨️  Print-run: equivalent docker run command:"
+  echo "docker run -d --name $CONTAINER $RESTART_FLAG $ENV_FLAGS $PORT_FLAGS $VOLUME_FLAGS $IMAGE"
+  exit 0
 fi
 
 # --- Pull image ---
